@@ -1,26 +1,25 @@
 import pytest
-from hamcrest import assert_that, equal_to, has_entries, has_length, is_, empty
+from hamcrest import assert_that, equal_to, has_entries, is_, empty
 from starlette import status
 
-from app.model.trading_platform_model import OrderInput, OrderOutput, OrderStatus
-from tests.conftest import parse_model
+from app.model.trading_platform_model import OrderInput, OrderStatus
 
 pytestmark = pytest.mark.asyncio
 
 
 class TestOrderRoutes:
 
-    @pytest.mark.parametrize("method,path,data", [
+    @pytest.mark.parametrize("method,endpoint_path,data", [
         ("GET", "/orders", None),
         ("POST", "/orders", OrderInput(stocks="EURPLN", quantity=2.0).model_dump()),
         ("GET", "orders/{order_id}", None),
         ("DELETE", "orders/{order_id}", None)
     ])
-    async def test_route_exists(self, method, path, data, http_client, created_order):
-        if "order_id" in path:
-            path = path.format(order_id=created_order.id)
+    async def test_route_exists(self, method, endpoint_path, data, http_client, created_order):
+        if "order_id" in endpoint_path:
+            endpoint_path = endpoint_path.format(order_id=created_order.id)
         response = await http_client.request(method=method,
-                                             url=path,
+                                             url=endpoint_path,
                                              json=data)
         assert_that(response.status_code != status.HTTP_404_NOT_FOUND)
 
