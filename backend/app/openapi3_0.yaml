@@ -18,7 +18,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/OrderInput'
+                  $ref: '#/components/schemas/OrderOutput'
     post:
       summary: Place a new order
       operationId: placeOrder
@@ -35,7 +35,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderInput'
+                $ref: '#/components/schemas/OrderOutput'
         '400':
           description: Invalid input
           content:
@@ -58,7 +58,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderInput'
+                $ref: '#/components/schemas/OrderOutput'
         '404':
           description: Order not found
           content:
@@ -70,7 +70,7 @@ paths:
       operationId: cancelOrder
       responses:
         '204':
-          description: Order canceled
+          description: Order cancelled
         '404':
           description: Order not found
           content:
@@ -91,9 +91,9 @@ components:
     OrderInput:
       type: object
       properties:
-        stoks:
+        stocks:
           type: string
-          description: Currency pair symbol (e.g. 'EURUSD'), or any other stuff 
+          description: Currency pair symbol (e.g. 'EURUSD'), or any other stuff
         quantity:
           type: number
           format: double
@@ -104,7 +104,7 @@ components:
         id:
           type: string
           description: Unique identifier for the order
-        stoks:
+        stocks:
           type: string
           description: Currency pair symbol (e.g. 'EURUSD')
         quantity:
@@ -113,9 +113,8 @@ components:
           description: Quantity of the currency pair to be traded
         status:
           type: string
-          enum: [pending, executed, canceled]
+          enum: [ pending, executed, cancelled ]
           description: Status of the order
-          
     Error:
       type: object
       properties:
