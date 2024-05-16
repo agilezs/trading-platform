@@ -55,22 +55,20 @@ async def get_order_by_id(order_id: str) -> OrderOutput:
     if order:
         return order
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Order with id '{order_id}' not found!")
+                        detail=f"Order not found!")
 
 
 @router.delete(
     "/{order_id}",
-    response_model=int | Error,
-    response_model_exclude_none=True,
     name="orders:cancelOrder",
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_204_NO_CONTENT
 )
-async def cancel_order(order_id: str) -> int | Error:
+async def cancel_order(order_id: str) -> None:
     await random_delay()
     if order := database.get(order_id):
         database.pop(order.id)
-        return status.HTTP_204_NO_CONTENT
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Order not found"
-    )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found!"
+        )

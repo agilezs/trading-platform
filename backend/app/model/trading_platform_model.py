@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field, ConfigDict, confloat
 
@@ -38,5 +39,11 @@ class OrderOutput(OrderBaseModel):
 
 
 class Error(OrderBaseModel):
-    code: int = Field(..., description='Error code')
+    code: int | None = Field(None, description='Error code')
     message: str = Field(..., description='Error message')
+
+
+class RequestError(Error):
+    input: Any | None = Field(None, description='Input data')
+    localization: list[Any] = Field(default_factory=list, description='Path to invalid field')
+    type: str = Field(..., description='Type of error occurrence')
