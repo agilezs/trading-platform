@@ -1,7 +1,10 @@
 from asyncio import sleep
 from random import uniform
 
-from starlette.websockets import WebSocket
+from app.api.websocket_manager import WebSocketManager
+from app.model.trading_platform_model import OrderOutput, OrderStatus, OrderInput
+
+orders_db = {}
 
 
 async def random_delay():
@@ -10,17 +13,13 @@ async def random_delay():
     await sleep(delay=delay)
 
 
-class WsConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket) -> None:
-        self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: dict) -> None:
-        for connection in self.active_connections:
-            await connection.send_json(message)
+async def update_order_status(order_id: str, input_model: OrderInput, ws_manager: WebSocketManager):
+    order = orders_db.get(order_id)
+    for order_status in [OrderStatus.pending, OrderStatus.executed, OrderStatus.cancelled]:
+        await random_delay()
+        order.status = order_status.value
+        await ws_manager.broadcast(OrderOutput(id=order_id,
+                                               stocks=input_model.stocks,
+                                               quantity=input_model.quantity,
+                                               status=order_status)
+                                   .model_dump(exclude_none=True))
