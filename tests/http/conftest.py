@@ -1,8 +1,8 @@
 import pytest_asyncio
 from httpx import AsyncClient
 
-from app.model.trading_platform_model import OrderOutput, OrderInput
-from tests.conftest import get_http_url, wait_for_response_and_parse_model, TIMEOUT
+from tests.model.trading_platform_model import OrderOutput, OrderInput
+from tests.conftest import get_http_url
 
 
 @pytest_asyncio.fixture

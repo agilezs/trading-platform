@@ -4,7 +4,7 @@ import pytest
 from hamcrest import assert_that, equal_to, has_entries, has_item, only_contains
 from starlette import status
 
-from app.model.trading_platform_model import RequestError
+from tests.model.trading_platform_model import RequestError
 
 pytestmark = pytest.mark.asyncio
 
@@ -93,7 +93,7 @@ class TestOrderRequestValidation:
         # given
         broken_json_request = '{"stocks": "EURPLN" "quantity": 10}'
         # when
-        response = await http_client.post("/orders", data=broken_json_request)
+        response = await http_client.post("/orders", content=broken_json_request)
         # then
         expected_error = RequestError(message="JSON decode error",
                                       input={},

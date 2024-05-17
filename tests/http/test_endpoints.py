@@ -2,7 +2,7 @@ import pytest
 from hamcrest import assert_that, equal_to, has_entries, is_, empty
 from starlette import status
 
-from app.model.trading_platform_model import OrderInput, OrderStatus
+from tests.model.trading_platform_model import OrderInput, OrderStatus
 
 pytestmark = pytest.mark.asyncio
 
