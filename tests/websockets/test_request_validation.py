@@ -1,93 +1,129 @@
 import json
 
 import pytest
-from hamcrest import assert_that, equal_to, contains_string
+from hamcrest import assert_that, equal_to, has_length
 from starlette import status
 
-from tests.model.trading_platform_model import Error
+from tests.model.trading_platform_model import Error, RequestError, RequestErrors
 from tests.websockets.conftest import wait_for_response_and_parse_model, TIMEOUT
 
+pytestmark = pytest.mark.asyncio
 
-def create_required_field_missing_error_message(input_value, *invalid_fields):
-    invalid_field_desc = []
-    for invalid_field in invalid_fields:
-        invalid_field_desc.append(
-            f"""{invalid_field}
-  Field required [type=missing, input_value={input_value}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.7/v/missing""")
-    return invalid_field_desc
-
-
-missing_required_fields_data = [
-    ("empty request", {}, ["stocks", "quantity"]),
-    ("request not validated", {"test": "data"}, ["stocks", "quantity"]),
-    ("quantity missing in request", {"stocks": "EURPLN"}, ["quantity"]),
-    ("stocks missing in request", {"quantity": 2}, ["stocks"]),
+request_validation_data = [
+    ("empty request", {}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Field required",
+                     input={},
+                     localization=["stocks"],
+                     type="missing"),
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Field required",
+                     input={},
+                     localization=["quantity"],
+                     type="missing")
+    ]),
+    ("request not validated", {"test": "data"}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Field required",
+                     input={"test": "data"},
+                     localization=["stocks"],
+                     type="missing"),
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Field required",
+                     input={"test": "data"},
+                     localization=["quantity"],
+                     type="missing")
+    ]),
+    ("quantity missing in request", {"stocks": "EURPLN"}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Field required",
+                     input={"stocks": "EURPLN"},
+                     localization=["quantity"],
+                     type="missing")
+    ]),
+    ("stocks missing in request", {"quantity": 2}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Field required",
+                     input={"quantity": 2},
+                     localization=["stocks"],
+                     type="missing")
+    ]),
+    ("wrong stocks type", {"stocks": 123, "quantity": 10}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Input should be a valid string",
+                     input=123,
+                     localization=["stocks"],
+                     type="string_type")
+    ]),
+    ("wrong quantity type", {"stocks": "EURGBP", "quantity": "abc"}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Input should be a valid number, unable to parse string as a number",
+                     input="abc",
+                     localization=["quantity"],
+                     type="float_parsing")
+    ]),
+    ("wrong quantity type", {"stocks": "EURGBP", "quantity": None}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Input should be a valid number",
+                     input=None,
+                     localization=["quantity"],
+                     type="float_type")
+    ]),
+    ("quantity as negative float amount", {"stocks": "GBPPLN", "quantity": -0.245}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Input should be greater than 0",
+                     input=-0.245,
+                     localization=["quantity"],
+                     type="greater_than")
+    ]),
+    ("quantity as negative int amount", {"stocks": "GBPPLN", "quantity": -1}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Input should be greater than 0",
+                     input=-1,
+                     localization=["quantity"],
+                     type="greater_than")
+    ]),
+    ("quantity as float zero", {"stocks": "USDAUD", "quantity": 0.00}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Input should be greater than 0",
+                     input=0.0,
+                     localization=["quantity"],
+                     type="greater_than")
+    ]),
+    ("quantity as int zero", {"stocks": "USDAUD", "quantity": 0}, [
+        RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                     message="Input should be greater than 0",
+                     input=0,
+                     localization=["quantity"],
+                     type="greater_than")
+    ]),
 ]
 
-wrong_field_type_data = [
-    ("wrong stocks type", {"stocks": 123, "quantity": 10},
-     "stocks\n  Input should be a valid string [type=string_type, input_value=123, input_type=int]"),
-    ("wrong quantity type", {"stocks": "EURGBP", "quantity": "abc"},
-     "quantity\n  Input should be a valid number, unable to parse string as a number "
-     "[type=float_parsing, input_value='abc', input_type=str]"),
-    ("wrong quantity type", {"stocks": "EURGBP", "quantity": None},
-     "quantity\n  Input should be a valid number [type=float_type, input_value=None, input_type=NoneType]"),
-]
 
-wrong_field_value_data = [
-    ("quantity as negative float amount", {"stocks": "GBPPLN", "quantity": -0.245}),
-    ("quantity as negative int amount", {"stocks": "GBPPLN", "quantity": -1}),
-    ("quantity as float zero", {"stocks": "USDAUD", "quantity": 0.00}),
-    ("quantity as int zero", {"stocks": "USDAUD", "quantity": 0}),
-]
+class TestWsRequestValidation:
 
+    @pytest.mark.parametrize("desc,json_data,expected_errors", request_validation_data)
+    async def test_request_validation_errors(self, desc, json_data, expected_errors, websocket_client):
+        # given
+        await websocket_client.send(json.dumps(json_data))
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("desc,json_data,invalid_fields", missing_required_fields_data)
-async def test_request_required_field_missing(desc, json_data, invalid_fields, websocket_client):
-    # given
-    await websocket_client.send(json.dumps(json_data))
+        # when
+        response = await wait_for_response_and_parse_model(coro=websocket_client.recv(),
+                                                           timeout=TIMEOUT,
+                                                           model=RequestErrors)
+        # then
+        assert_that(response.errors, has_length(len(expected_errors)), "Same error count")
+        for returned_error, expected_error in zip(response.errors, expected_errors):
+            assert_that(returned_error, equal_to(expected_error), "Error as expected")
 
-    # when
-    response = await wait_for_response_and_parse_model(coro=websocket_client.recv(),
-                                                       timeout=TIMEOUT,
-                                                       model=Error)
-    # then
-    assert_that(response.code, equal_to(status.WS_1003_UNSUPPORTED_DATA), "Returned error code is UNSUPPORTED_DATA")
-    for error_message in create_required_field_missing_error_message(json_data, *invalid_fields):
-        assert_that(response.message, contains_string(error_message), "Error response contains expected message")
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("desc,json_data,error_message", wrong_field_type_data)
-async def test_request_required_field_wrong_type(desc, json_data, error_message, websocket_client):
-    # given
-    await websocket_client.send(json.dumps(json_data))
-
-    # when
-    response = await wait_for_response_and_parse_model(coro=websocket_client.recv(),
-                                                       timeout=TIMEOUT,
-                                                       model=Error)
-    # then
-    assert_that(response.code, equal_to(status.WS_1003_UNSUPPORTED_DATA), "Returned error code is UNSUPPORTED_DATA")
-    assert_that(response.message, contains_string(error_message), "Error response contains expected message")
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("desc,json_data", wrong_field_value_data)
-async def test_request_required_field_wrong_value(desc, json_data, websocket_client):
-    # given
-    expected_error_message = "Input should be greater than 0 [type=greater_than, input_value={0}, input_type={1}]"
-    quantity = json_data.get("quantity")
-    await websocket_client.send(json.dumps(json_data))
-
-    # when
-    response = await wait_for_response_and_parse_model(coro=websocket_client.recv(),
-                                                       timeout=TIMEOUT,
-                                                       model=Error)
-    # then
-    assert_that(response.code, equal_to(status.WS_1003_UNSUPPORTED_DATA), "Returned error code is UNSUPPORTED_DATA")
-    assert_that(response.message,
-                contains_string(expected_error_message.format(quantity, type(quantity).__name__)),
-                "Error response contains expected message")
+    async def test_invalid_json(self, websocket_client):
+        # given
+        await websocket_client.send('{"stocks": "EURUSD" "quantity": 10.0}')
+        # when
+        response = await wait_for_response_and_parse_model(coro=websocket_client.recv(),
+                                                           timeout=TIMEOUT,
+                                                           model=RequestErrors)
+        # then
+        assert_that(response.errors, has_length(1), "One error returned")
+        assert_that(response.errors[0], equal_to(Error(code=status.WS_1003_UNSUPPORTED_DATA,
+                                                       message="Expecting ',' delimiter: line 1 column 21 (char 20)")))

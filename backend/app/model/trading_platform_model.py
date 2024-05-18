@@ -47,3 +47,7 @@ class RequestError(Error):
     input: Any | None = Field(None, description='Input data')
     localization: list[Any] = Field(default_factory=list, description='Path to invalid field')
     type: str = Field(..., description='Type of error occurrence')
+
+
+class RequestErrors(BaseModel):
+    errors: list[RequestError | Error] = Field(default_factory=list, description='List of request errors')

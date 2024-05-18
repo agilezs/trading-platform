@@ -4,6 +4,7 @@ from typing import Coroutine, Type
 import pytest_asyncio
 import websockets
 from pydantic import BaseModel
+from websockets.legacy.client import WebSocketClientProtocol
 
 from tests.conftest import get_ws_url
 
@@ -15,16 +16,8 @@ async def wait_for_response_and_parse_model(coro: Coroutine, timeout: int, model
     return model.model_validate_json(response)
 
 
-#
-# @pytest_asyncio.fixture(scope="session")
-# async def event_loop():
-#     loop = asyncio.get_event_loop_policy().new_event_loop()
-#     yield loop
-#     loop.close()
-
-
 @pytest_asyncio.fixture
-async def websocket_client():
+async def websocket_client() -> WebSocketClientProtocol:
     uri = get_ws_url() + "/ws"
     async with websockets.connect(uri) as websocket:
         yield websocket

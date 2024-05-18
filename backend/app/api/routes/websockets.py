@@ -9,7 +9,7 @@ from websockets import ConnectionClosed
 
 from app.api.utils import orders_db, random_delay
 from app.api.websocket_manager import ws_manager
-from app.model.trading_platform_model import OrderInput, OrderOutput, OrderStatus, Error
+from app.model.trading_platform_model import OrderInput, OrderOutput, OrderStatus, Error, RequestError, RequestErrors
 
 router = APIRouter()
 
@@ -32,15 +32,20 @@ async def websocket_endpoint(websocket: WebSocket):
                     order.status = order_status.value
                     await ws_manager.broadcast(order.model_dump(exclude_none=True))
 
-            except (ValidationError, JSONDecodeError) as e:
-                # send error to the client so they know what happened
-                await websocket.send_json({"error": "Validation error",
-                                           **Error(code=status.WS_1003_UNSUPPORTED_DATA,
-                                                   message=str(e))
-                                          .model_dump(exclude_none=True)})
+            except ValidationError as e:
+                await websocket.send_json(RequestErrors(errors=[RequestError(code=status.WS_1003_UNSUPPORTED_DATA,
+                                                                             message=error.get("msg"),
+                                                                             input=error.get("input"),
+                                                                             localization=list(error.get("loc")),
+                                                                             type=error.get("type"))
+                                                                for error in e.errors()]).model_dump(exclude_none=True))
+            except JSONDecodeError as e:
+                await websocket.send_json(RequestErrors(errors=[Error(code=status.WS_1003_UNSUPPORTED_DATA,
+                                                                      message=str(e))]).model_dump())
 
     except (WebSocketDisconnect, ConnectionClosed):
         # handle disconnection gracefully
         ws_manager.disconnect(websocket)
     except Exception as e:
-        await websocket.send_json({"error": str(e)})
+        await websocket.send_json(RequestErrors(errors=[Error(code=status.WS_1006_ABNORMAL_CLOSURE,
+                                                              message=str(e))]).model_dump())
