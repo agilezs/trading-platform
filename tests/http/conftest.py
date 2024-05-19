@@ -1,16 +1,7 @@
 import pytest_asyncio
-from httpx import AsyncClient
 
 from tests.model.trading_platform_model import OrderOutput, OrderInput
-from tests.conftest import get_http_url
-
-
-@pytest_asyncio.fixture
-async def http_client() -> AsyncClient:
-    async with AsyncClient(base_url=get_http_url(),
-                           headers={"Content-Type": "application/json"},
-                           follow_redirects=True) as async_client:
-        yield async_client
+from tests.conftest import http_client
 
 
 @pytest_asyncio.fixture

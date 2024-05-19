@@ -6,7 +6,7 @@ import websockets
 from pydantic import BaseModel
 from websockets.legacy.client import WebSocketClientProtocol
 
-from tests.conftest import get_ws_url
+from tests.conftest import get_ws_url, http_client
 
 TIMEOUT = 5  # seconds
 

@@ -2,8 +2,9 @@ import asyncio
 import json
 
 import pytest
-from hamcrest import assert_that, has_entries, is_
+from hamcrest import assert_that, has_entries, is_, equal_to
 from hamcrest.core.core.future import future_raising, resolved
+from starlette import status
 from websockets.legacy.client import WebSocketClientProtocol
 
 from tests.model.trading_platform_model import OrderOutput, OrderStatus, OrderInput
@@ -91,3 +92,28 @@ class TestWsMessages:
         assert_that(await resolved(asyncio.wait_for(third_websocket_client.recv(), timeout=TIMEOUT)),
                     future_raising(TimeoutError),
                     "No more messages left")
+
+    async def test_creating_order_via_http_receiving_messages_via_websocket(self, http_client, websocket_client):
+        response = await http_client.post("/orders",
+                                          json=OrderInput(stocks="EURUSD",
+                                                          quantity=1000.24).model_dump())
+        assert_that(response.status_code, equal_to(status.HTTP_201_CREATED), "Expected status is returned")
+        expected_messages = [
+            OrderOutput(id=response.json().get("id"),
+                        stocks="EURUSD",
+                        quantity=1000.24,
+                        status=OrderStatus.pending),
+            OrderOutput(id=response.json().get("id"),
+                        stocks="EURUSD",
+                        quantity=1000.24,
+                        status=OrderStatus.executed),
+            OrderOutput(id=response.json().get("id"),
+                        stocks="EURUSD",
+                        quantity=1000.24,
+                        status=OrderStatus.cancelled)
+        ]
+        for expected_message in expected_messages:
+            ws_message = await wait_for_response_and_parse_model(coro=websocket_client.recv(),
+                                                                 timeout=TIMEOUT,
+                                                                 model=OrderOutput)
+            assert_that(ws_message, equal_to(expected_message), "Expected message is received")
